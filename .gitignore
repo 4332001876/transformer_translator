@@ -1,0 +1,5 @@
+nltk_data
+work/save/*
+work/transformer/data
+
+*.pt
