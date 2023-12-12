@@ -64,7 +64,8 @@ DEBUG = False    # Debug / Learning Purposes.
 
 if DEBUG:
     EPOCHS = 2
-    LAYERS = 3
+    N_ENCODER = 3
+    N_DECODER = 3
     H_NUM = 8
     D_MODEL = 128
     D_FF = 256
@@ -75,7 +76,8 @@ if DEBUG:
     SAVE_FILE = 'save/models/model.pt'
 else:
     EPOCHS = 10
-    LAYERS = 6
+    N_ENCODER = 4
+    N_DECODER = 5
     H_NUM = 8
     D_MODEL = 256
     D_FF = 1024
@@ -201,7 +203,7 @@ class PrepareData:
             # paddings: batch, batch_size, batch_MaxLength
             batch_cn = seq_padding(batch_cn)
             batch_en = seq_padding(batch_en)
-            batches.append(Batch(batch_en, batch_cn))
+            batches.append(Batch(batch_cn, batch_en))
             #!!! 'Batch' Class is called here but defined in later section.
         return batches
 
@@ -507,7 +509,8 @@ class Generator(nn.Module):
         return F.log_softmax(self.proj(x), dim=-1)
 
 
-def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1):
+def make_model(src_vocab, tgt_vocab, n_encoder = N_ENCODER,
+    n_decoder = N_DECODER, d_model=512, d_ff=2048, h=8, dropout=0.1):
     c = copy.deepcopy
     #  Attention
     attn = MultiHeadedAttention(h, d_model).to(DEVICE)
@@ -518,9 +521,9 @@ def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0
     #  Transformer
     model = Transformer(
         Encoder(EncoderLayer(d_model, c(attn), c(ff),
-                             dropout).to(DEVICE), N).to(DEVICE),
+                             dropout).to(DEVICE), n_encoder).to(DEVICE),
         Decoder(DecoderLayer(d_model, c(attn), c(attn),
-                             c(ff), dropout).to(DEVICE), N).to(DEVICE),
+                             c(ff), dropout).to(DEVICE), n_decoder).to(DEVICE),
         nn.Sequential(Embeddings(d_model, src_vocab).to(DEVICE), c(position)),
         nn.Sequential(Embeddings(d_model, tgt_vocab).to(DEVICE), c(position)),
         Generator(d_model, tgt_vocab)).to(DEVICE)
@@ -699,8 +702,8 @@ def train(data, model, criterion, optimizer):
 
 # Step 1: Data Preprocessing
 data = PrepareData(TRAIN_FILE, DEV_FILE)
-src_vocab = len(data.en_word_dict)
-tgt_vocab = len(data.cn_word_dict)
+src_vocab = len(data.cn_word_dict)
+tgt_vocab = len(data.en_word_dict)
 print(src_vocab, tgt_vocab)
 
 print(f"src_vocab {src_vocab}")
@@ -713,7 +716,8 @@ print(f"tgt_vocab {tgt_vocab}")
 model = make_model(
     src_vocab,
     tgt_vocab,
-    LAYERS,
+    N_ENCODER,
+    N_DECODER,
     D_MODEL,
     D_FF,
     H_NUM,
@@ -769,28 +773,28 @@ def evaluate(data, model):
     with torch.no_grad():
         #  pick some random sentences from dev data.
         for i in np.random.randint(len(data.dev_en), size=10):
-            # Print English sentence
-            en_sent = " ".join([data.en_index_dict[w] for w in data.dev_en[i]])
-            print("\n" + en_sent)
-
-            # Print Target Chinese sentence
+            # Print Chinese sentence
             cn_sent = " ".join([data.cn_index_dict[w] for w in data.dev_cn[i]])
-            print("".join(cn_sent))
+            print("\n" + "".join(cn_sent))
+            
+            # Print Target English sentence
+            en_sent = " ".join([data.en_index_dict[w] for w in data.dev_en[i]])
+            print(en_sent)
 
-            # conver English to tensor
-            src = torch.from_numpy(np.array(data.dev_en[i])).long().to(DEVICE)
+            # conver Chinese to tensor
+            src = torch.from_numpy(np.array(data.dev_cn[i])).long().to(DEVICE)
             src = src.unsqueeze(0)
             # set attention mask
             src_mask = (src != 0).unsqueeze(-2)
             # apply model to decode, make prediction
             out = greedy_decode(
-                model, src, src_mask, max_len=MAX_LENGTH, start_symbol=data.cn_word_dict["BOS"])
+                model, src, src_mask, max_len=MAX_LENGTH, start_symbol=data.en_word_dict["BOS"])
             # save all in the translation list
             translation = []
             # convert id to Chinese, skip 'BOS' 0.
             # 遍历翻译输出字符的下标（注意：跳过开始符"BOS"的索引 0）
             for j in range(1, out.size(1)):
-                sym = data.cn_index_dict[out[0, j].item()]
+                sym = data.en_index_dict[out[0, j].item()]
                 if sym != 'EOS':
                     translation.append(sym)
                 else:
@@ -798,7 +802,7 @@ def evaluate(data, model):
             print("translation: {}".format(" ".join(translation)))
 
 
-# **English to Chinese Translator**
+# **Chinese to English Translator**
 
 # Predition
 model.load_state_dict(torch.load(SAVE_FILE))
