@@ -706,6 +706,9 @@ print(src_vocab, tgt_vocab)
 print(f"src_vocab {src_vocab}")
 print(f"tgt_vocab {tgt_vocab}")
 
+#print(data.en_word_dict)
+#print(data.cn_word_dict)
+
 # Step 2: Init model
 model = make_model(
     src_vocab,
@@ -807,7 +810,7 @@ print(
 
 
 # Here is my pretrained model with CUDA support
-if DEVICE == "cuda":
+if DEVICE.__str__() == "cuda":
     SAVE_FILE_EXTRA = 'save/models/large_model.pt'
     model.load_state_dict(torch.load(SAVE_FILE_EXTRA))
     print(">>>>>>> start evaluate")
