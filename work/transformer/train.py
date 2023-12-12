@@ -145,6 +145,7 @@ class PrepareData:
         """
         sentences: list of word list 
         build dictionary as {key(word): value(id)}
+        return: word->index(dict), num_of_total_words(int), index->word(dict)
         """
         word_count = Counter()
         for sentence in sentences:
